@@ -52,3 +52,53 @@ def create_contribution_charts(df: pd.DataFrame):
     )
     
     return fig_bar, fig_line 
+
+def create_social_share_image(df: pd.DataFrame, username: str):
+    # Create a figure with subplots
+    fig = go.Figure()
+    
+    # Add main bar chart
+    fig.add_trace(go.Bar(
+        name='Added Lines',
+        x=df['repository'],
+        y=df['added_lines'],
+        marker_color='#28a745'
+    ))
+    
+    fig.add_trace(go.Bar(
+        name='Deleted Lines',
+        x=df['repository'],
+        y=df['deleted_lines'],
+        marker_color='#dc3545'
+    ))
+    
+    # Update layout with GitHub-style theme
+    fig.update_layout(
+        title=f"@{username}'s GitHub Contributions",
+        template='plotly_dark',
+        showlegend=True,
+        barmode='group',
+        plot_bgcolor='#0d1117',
+        paper_bgcolor='#0d1117',
+        font=dict(color='#c9d1d9'),
+        height=600,
+        width=1200,
+        margin=dict(t=100, b=100),
+        xaxis=dict(showgrid=False),
+        yaxis=dict(showgrid=True, gridcolor='#21262d'),
+    )
+    
+    # Add total stats as annotations
+    total_added = df['added_lines'].sum()
+    total_deleted = df['deleted_lines'].sum()
+    total_net = total_added - total_deleted
+    
+    fig.add_annotation(
+        text=f"Total Added: {total_added:,} | Total Deleted: {total_deleted:,} | Net Change: {total_net:,}",
+        xref="paper", yref="paper",
+        x=0.5, y=1.1,
+        showarrow=False,
+        font=dict(size=14, color='#c9d1d9')
+    )
+    
+    return fig

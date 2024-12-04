@@ -1,8 +1,11 @@
 import streamlit as st
 import pandas as pd
 from github_client import GitHubClient
-from visualization import create_metrics_display, create_contribution_charts
+from visualization import create_metrics_display, create_contribution_charts, create_social_share_image
 from auth import init_github_oauth, handle_oauth_callback, logout
+import urllib.parse
+import os
+import hashlib
 
 def main():
     st.set_page_config(
@@ -137,11 +140,99 @@ def main():
                                 df.sort_values('total_lines', ascending=False),
                                 use_container_width=True
                             )
+                            
+                            # Add share functionality
+                            create_share_section(df, username)
                         else:
                             st.warning("No contributions found in the analyzed repositories.")
                         
                     except Exception as e:
                         st.error(f"Error analyzing contributions: {str(e)}")
+
+def create_share_section(df: pd.DataFrame, username: str):
+    st.write("---")
+    st.subheader("📤 Share Your Stats")
+    
+    # Calculate stats
+    total_added = df['added_lines'].sum()
+    total_deleted = df['deleted_lines'].sum()
+    total_net = total_added - total_deleted
+    
+    # Create a verification hash (first 8 chars) using repository names and stats
+    repos_string = "-".join(sorted(df['repository'].tolist()))
+    verification_string = f"{username}-{total_added}-{total_deleted}-{repos_string}"
+    verification_hash = hashlib.sha256(verification_string.encode()).hexdigest()[:8]
+    
+    # Create tweet text with verification
+    tweet_text = (
+        f"🚀 My GitHub Contributions Analysis:\n\n"
+        f"📈 Added: {total_added:,} lines\n"
+        f"📉 Deleted: {total_deleted:,} lines\n"
+        f"✨ Net Change: {total_net:,} lines\n\n"
+        f"🔍 Verify: #{verification_hash}\n"
+        f"🔗 Try it: https://github.com/guillaumegay13/git-contributions"
+    )
+    
+    # Create Twitter share link
+    tweet_url = f"https://twitter.com/intent/tweet?text={urllib.parse.quote(tweet_text)}"
+    
+    # Show preview and share button
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        st.text_area("Tweet Preview", tweet_text, height=150)
+    with col2:
+        st.markdown(f"""
+        <a href="{tweet_url}" target="_blank">
+            <img src="https://img.shields.io/badge/Share%20on-X-black?logo=x&style=for-the-badge" alt="Share on X">
+        </a>
+        """, unsafe_allow_html=True)
+
+def verify_contribution_hash(username: str, added: int, deleted: int, repos: str, hash_to_verify: str) -> bool:
+    """Verify a contribution hash from a tweet."""
+    # Reconstruct the verification string
+    verification_string = f"{username}-{added}-{deleted}-{repos}"
+    # Generate hash and compare
+    computed_hash = hashlib.sha256(verification_string.encode()).hexdigest()[:8]
+    return computed_hash == hash_to_verify
+
+def create_verification_section():
+    st.write("---")
+    st.subheader("🔍 Verify Shared Stats")
+    
+    with st.expander("Verify someone's shared stats"):
+        username = st.text_input("GitHub Username", key="verify_username")
+        added = st.number_input("Added Lines", min_value=0, key="verify_added")
+        deleted = st.number_input("Deleted Lines", min_value=0, key="verify_deleted")
+        repos = st.text_input("Repository Names (comma-separated)", key="verify_repos")
+        hash_to_verify = st.text_input("Verification Hash (without #)", key="verify_hash")
+        
+        if st.button("Verify"):
+            if all([username, hash_to_verify, repos]):
+                # Convert repos string to sorted dash-separated format
+                repos_list = [r.strip() for r in repos.split(",")]
+                repos_string = "-".join(sorted(repos_list))
+                
+                is_valid = verify_contribution_hash(
+                    username=username,
+                    added=added,
+                    deleted=deleted,
+                    repos=repos_string,
+                    hash_to_verify=hash_to_verify
+                )
+                
+                if is_valid:
+                    st.success("✅ Verification Successful! These stats are authentic.")
+                else:
+                    st.error("❌ Verification Failed! These stats may have been modified.")
+                
+                # Show debug information
+                with st.expander("Show Verification Details"):
+                    st.code(f"""
+Verification Process:
+1. Input String: {username}-{added}-{deleted}-{repos_string}
+2. Generated Hash: {hashlib.sha256(f"{username}-{added}-{deleted}-{repos_string}".encode()).hexdigest()[:8]}
+3. Provided Hash: {hash_to_verify}
+                    """)
 
 if __name__ == "__main__":
     main()
