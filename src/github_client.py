@@ -83,7 +83,7 @@ class GitHubClient:
         response.raise_for_status()
         return response.json()['login']
 
-    def analyze_repo_contributions(self, username: str, repo_name: str, repo_url: str, author_emails: List[str]) -> Dict:
+    def analyze_repo_contributions(self, username: str, repo_name: str, repo_url: str, author_emails: List[str], year: Optional[int] = None) -> Dict:
         if self.token:
             repo_url = repo_url.replace('https://', f'https://{self.token}@')
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -107,6 +107,10 @@ class GitHubClient:
                             '--pretty=tformat:',
                             '--numstat'
                         ]
+                        
+                        # Add year filter if specified (year is not None and not 'All time')
+                        if year is not None:
+                            git_command.extend(['--since', f'{year}-01-01', '--until', f'{year}-12-31'])
                         
                         # Add author parameters for username and all emails
                         git_command.extend(['--author', username])

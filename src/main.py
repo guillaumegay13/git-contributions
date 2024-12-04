@@ -6,6 +6,7 @@ from auth import init_github_oauth, handle_oauth_callback, logout
 import urllib.parse
 import os
 import hashlib
+from database import Database
 
 def main():
     st.set_page_config(
@@ -14,12 +15,36 @@ def main():
         layout="wide"
     )
 
+    # Initialize the database connection
+    db = Database()
+
     st.title("🐙 GitHub Line Contribution Analyzer")
     st.markdown("""
     Analyze line contributions across all repositories for any GitHub user.
     This tool uses git log to provide accurate statistics similar to local git analysis.
     """)
     
+    # Display leaderboard in the sidebar
+    with st.sidebar:
+        st.markdown("### 🏆 Top Contributors")
+        tab1, tab2 = st.tabs(["All Time", "2024"])
+        
+        with tab1:
+            leaderboard_all = db.get_leaderboard(period='all_time')
+            for rank, user_stats in enumerate(leaderboard_all, 1):
+                st.markdown(
+                    f"{rank}. **{user_stats['username']}**  \n"
+                    f"Net Lines: {user_stats['all_time']['total_net']:,}"
+                )
+        
+        with tab2:
+            leaderboard_2024 = db.get_leaderboard(period='year_2024')
+            for rank, user_stats in enumerate(leaderboard_2024, 1):
+                st.markdown(
+                    f"{rank}. **{user_stats['username']}**  \n"
+                    f"Net Lines: {user_stats['year_2024']['total_net']:,}"
+                )
+
     # Handle OAuth flow
     handle_oauth_callback()
     token = init_github_oauth()
@@ -79,7 +104,8 @@ def main():
                         # Analyze each repository
                         total_repos = len([repo for repo in repos if not repo['fork']])
                         processed_repos = 0
-                        contributions = []
+                        contributions_all_time = []
+                        contributions_2024 = []
                         
                         for repo in repos:
                             if not repo['fork']:
@@ -93,17 +119,29 @@ def main():
                                 )
                                 
                                 # Add log message
-                                log_placeholder.markdown(f"🔄 Analyzing {repo['name']}...")
+                                log_placeholder.markdown(f"{repo['name']}...")
                                 
-                                # Process repository
-                                contribution = client.analyze_repo_contributions(
+                                # Process repository for all time
+                                contribution_all = client.analyze_repo_contributions(
                                     username,
                                     repo['name'],
                                     repo['clone_url'],
-                                    author_emails
+                                    author_emails,
+                                    year=None
                                 )
-                                if contribution['added_lines'] > 0 or contribution['deleted_lines'] > 0:
-                                    contributions.append(contribution)
+                                if contribution_all['added_lines'] > 0 or contribution_all['deleted_lines'] > 0:
+                                    contributions_all_time.append(contribution_all)
+                                
+                                # Process repository for 2024
+                                contribution_2024 = client.analyze_repo_contributions(
+                                    username,
+                                    repo['name'],
+                                    repo['clone_url'],
+                                    author_emails,
+                                    year=2024
+                                )
+                                if contribution_2024['added_lines'] > 0 or contribution_2024['deleted_lines'] > 0:
+                                    contributions_2024.append(contribution_2024)
                                 
                                 # Update log with completion
                                 log_placeholder.markdown(f"✅ Completed {repo['name']}")
@@ -118,31 +156,52 @@ def main():
                         # Add spacing after progress section
                         st.write("---")
                         
-                        if contributions:
-                            # Create DataFrame
-                            df = pd.DataFrame(contributions)
+                        if contributions_all_time or contributions_2024:
+                            # Create DataFrames
+                            df_all_time = pd.DataFrame(contributions_all_time) if contributions_all_time else pd.DataFrame()
+                            df_2024 = pd.DataFrame(contributions_2024) if contributions_2024 else pd.DataFrame()
                             
-                            # Display visualizations
-                            create_metrics_display(df)
+                            # Add this database integration code here
+                            # Store stats in database
+                            db = Database()
+                            stats_all_time = {
+                                "total_added": int(df_all_time['added_lines'].sum()) if not df_all_time.empty else 0,
+                                "total_deleted": int(df_all_time['deleted_lines'].sum()) if not df_all_time.empty else 0,
+                                "total_net": int(df_all_time['total_lines'].sum()) if not df_all_time.empty else 0
+                            }
+                            stats_2024 = {
+                                "total_added": int(df_2024['added_lines'].sum()) if not df_2024.empty else 0,
+                                "total_deleted": int(df_2024['deleted_lines'].sum()) if not df_2024.empty else 0,
+                                "total_net": int(df_2024['total_lines'].sum()) if not df_2024.empty else 0
+                            }
+                            
+                            # Store user stats and get avatar URL from GitHub user data
+                            avatar_url = user.get('avatar_url') if user else None
+                            db.store_user_stats(username, stats_all_time, stats_2024, avatar_url)
+                            
+                            # Continue with existing visualization code
+                            create_metrics_display(df_all_time)
+                            create_metrics_display(df_2024)
                             
                             # Visualization Tabs
-                            tab1, tab2 = st.tabs(["Bar Chart", "Line Chart"])
-                            fig_bar, fig_line = create_contribution_charts(df)
+                            tab1, tab2 = st.tabs(["All Time", "2024"])
+                            fig_bar_all_time, fig_line_all_time = create_contribution_charts(df_all_time)
+                            fig_bar_2024, fig_line_2024 = create_contribution_charts(df_2024)
                             
                             with tab1:
-                                st.plotly_chart(fig_bar, use_container_width=True)
+                                st.plotly_chart(fig_bar_all_time, use_container_width=True)
                             
                             with tab2:
-                                st.plotly_chart(fig_line, use_container_width=True)
+                                st.plotly_chart(fig_bar_2024, use_container_width=True)
                             
                             # Detailed Repository Table
                             st.dataframe(
-                                df.sort_values('total_lines', ascending=False),
+                                df_all_time.sort_values('total_lines', ascending=False),
                                 use_container_width=True
                             )
                             
                             # Add share functionality
-                            create_share_section(df, username)
+                            create_share_section(df_all_time, username)
                         else:
                             st.warning("No contributions found in the analyzed repositories.")
                         
