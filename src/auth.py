@@ -18,7 +18,7 @@ if not GITHUB_CLIENT_ID or not GITHUB_CLIENT_SECRET:
 
 AUTHORIZATION_BASE_URL = 'https://github.com/login/oauth/authorize'
 TOKEN_URL = 'https://github.com/login/oauth/access_token'
-SCOPE = ['public_repo', 'read:user', 'user:email']
+SCOPE = ['read:user', 'user:email']
 CALLBACK_URL = st.secrets.get('CALLBACK_URL', 'http://localhost:8501')
 
 # Only disable HTTPS requirement in development
