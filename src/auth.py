@@ -54,7 +54,7 @@ def init_github_oauth():
     # Show login button
     st.markdown("""
         <div style="display: flex; justify-content: center; margin: 2em 0;">
-            <a href="{}" target="_self" style="
+            <a href="{}" target="_top" style="
                 text-decoration: none;
                 background-color: #24292e;
                 color: white;
