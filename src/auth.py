@@ -7,7 +7,7 @@ import os
 import requests
 
 # Use Streamlit secrets instead of environment variables
-IS_PROD = st.secrets.get('IS_PROD', 'false').lower() == 'true'
+IS_PROD = st.secrets.get('IS_PROD', False)
 
 # Use different client IDs and secrets for dev/prod
 GITHUB_CLIENT_ID = st.secrets['GITHUB_CLIENT_ID_PROD'] if IS_PROD else st.secrets['GITHUB_CLIENT_ID_DEV']
