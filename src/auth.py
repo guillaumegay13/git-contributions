@@ -6,28 +6,24 @@ from requests_oauthlib import OAuth2Session
 import os
 import requests
 
-# Enable non-HTTPS for development
-os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
-
-# Debug print to verify environment variables
-print("Environment variables:")
-print(f"IS_PROD: {os.getenv('IS_PROD')}")
-print(f"GITHUB_CLIENT_ID_DEV: {os.getenv('GITHUB_CLIENT_ID_DEV')}")
-
-# Get the current environment
-IS_PROD = os.getenv('IS_PROD', 'false').lower() == 'true'
+# Use Streamlit secrets instead of environment variables
+IS_PROD = st.secrets.get('IS_PROD', 'false').lower() == 'true'
 
 # Use different client IDs and secrets for dev/prod
-GITHUB_CLIENT_ID = os.getenv('GITHUB_CLIENT_ID_PROD' if IS_PROD else 'GITHUB_CLIENT_ID_DEV')
-GITHUB_CLIENT_SECRET = os.getenv('GITHUB_CLIENT_SECRET_PROD' if IS_PROD else 'GITHUB_CLIENT_SECRET_DEV')
+GITHUB_CLIENT_ID = st.secrets['GITHUB_CLIENT_ID_PROD'] if IS_PROD else st.secrets['GITHUB_CLIENT_ID_DEV']
+GITHUB_CLIENT_SECRET = st.secrets['GITHUB_CLIENT_SECRET_PROD'] if IS_PROD else st.secrets['GITHUB_CLIENT_SECRET_DEV']
 
 if not GITHUB_CLIENT_ID or not GITHUB_CLIENT_SECRET:
-    raise ValueError("GitHub OAuth credentials not found in environment variables")
+    raise ValueError("GitHub OAuth credentials not found in Streamlit secrets")
 
 AUTHORIZATION_BASE_URL = 'https://github.com/login/oauth/authorize'
 TOKEN_URL = 'https://github.com/login/oauth/access_token'
 SCOPE = ['public_repo', 'read:user', 'user:email']
-CALLBACK_URL = 'http://localhost:8501'
+CALLBACK_URL = st.secrets.get('CALLBACK_URL', 'http://localhost:8501')
+
+# Only disable HTTPS requirement in development
+if not IS_PROD:
+    os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
 # Initialize session state at module level
 def init_session_state():
