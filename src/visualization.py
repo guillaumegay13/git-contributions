@@ -2,6 +2,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 import streamlit as st
+import os
 
 def create_metrics_display(df: pd.DataFrame):
     total_added = df['added_lines'].sum()
@@ -53,52 +54,29 @@ def create_contribution_charts(df: pd.DataFrame):
     
     return fig_bar, fig_line 
 
-def create_social_share_image(df: pd.DataFrame, username: str):
-    # Create a figure with subplots
-    fig = go.Figure()
+def create_social_share_image(username: str, added: int, deleted: int, net: int, verification_hash: str) -> str:
+    """
+    Creates a social media preview image with user stats.
+    Returns the path to the generated image.
+    """
+    # Create figure
+    plt.figure(figsize=(12, 6))
+    plt.style.use('dark_background')
     
-    # Add main bar chart
-    fig.add_trace(go.Bar(
-        name='Added Lines',
-        x=df['repository'],
-        y=df['added_lines'],
-        marker_color='#28a745'
-    ))
+    # Add text
+    plt.text(0.5, 0.8, f"GitHub Contributions by @{username}", ha='center', va='center', fontsize=24)
+    plt.text(0.5, 0.6, f"Added: {added:,} lines", ha='center', va='center', fontsize=20, color='#00ff00')
+    plt.text(0.5, 0.4, f"Deleted: {deleted:,} lines", ha='center', va='center', fontsize=20, color='#ff0000')
+    plt.text(0.5, 0.2, f"Net Change: {net:,} lines", ha='center', va='center', fontsize=20, color='#ffffff')
+    plt.text(0.5, 0.1, f"Verification: #{verification_hash}", ha='center', va='center', fontsize=16, color='#888888')
     
-    fig.add_trace(go.Bar(
-        name='Deleted Lines',
-        x=df['repository'],
-        y=df['deleted_lines'],
-        marker_color='#dc3545'
-    ))
+    # Remove axes
+    plt.axis('off')
     
-    # Update layout with GitHub-style theme
-    fig.update_layout(
-        title=f"@{username}'s GitHub Contributions",
-        template='plotly_dark',
-        showlegend=True,
-        barmode='group',
-        plot_bgcolor='#0d1117',
-        paper_bgcolor='#0d1117',
-        font=dict(color='#c9d1d9'),
-        height=600,
-        width=1200,
-        margin=dict(t=100, b=100),
-        xaxis=dict(showgrid=False),
-        yaxis=dict(showgrid=True, gridcolor='#21262d'),
-    )
+    # Save to temporary file
+    os.makedirs('temp', exist_ok=True)
+    image_path = f'temp/share_{username}.png'
+    plt.savefig(image_path, bbox_inches='tight', facecolor='#0D1117')
+    plt.close()
     
-    # Add total stats as annotations
-    total_added = df['added_lines'].sum()
-    total_deleted = df['deleted_lines'].sum()
-    total_net = total_added - total_deleted
-    
-    fig.add_annotation(
-        text=f"Total Added: {total_added:,} | Total Deleted: {total_deleted:,} | Net Change: {total_net:,}",
-        xref="paper", yref="paper",
-        x=0.5, y=1.1,
-        showarrow=False,
-        font=dict(size=14, color='#c9d1d9')
-    )
-    
-    return fig
+    return image_path

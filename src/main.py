@@ -20,10 +20,40 @@ def main():
 
     st.title("🐙 GitHub Line Contribution Analyzer")
     st.markdown("""
-    Analyze line contributions across all repositories for any GitHub user.
-    This tool uses git log to provide accurate statistics similar to local git analysis.
+    git log analysis of your contributions across all repositories.
     """)
     
+    # Handle OAuth flow
+    handle_oauth_callback()
+    token = init_github_oauth()
+    
+    # Show user info and logout button in sidebar if authenticated
+    if token:
+        user = st.session_state.get('github_user')
+        if user:
+            with st.sidebar:
+                st.markdown(f"""
+                ### 👤 Logged in as
+                **{user['name'] or user['login']}** (@{user['login']})
+                
+                *Using {len(user['emails'])} verified email(s)*
+                """)
+                if st.button("🚪 Logout", type="primary"):
+                    logout()
+
+    # Add search feature in sidebar
+    with st.sidebar:
+        st.markdown("### 🔍 Search Contributor")
+        search_query = st.text_input("Search by username", placeholder="Enter GitHub username")
+        if search_query:
+            search_results = db.search_users(search_query)
+            if search_results:
+                for user_stats in search_results:
+                    st.markdown(
+                        f"**{user_stats['username']}**  \n"
+                        f"Net Lines: {user_stats['all_time']['total_net']:,}"
+                    )
+
     # Display leaderboard in the sidebar
     with st.sidebar:
         st.markdown("### 🏆 Top Contributors")
@@ -45,25 +75,8 @@ def main():
                     f"Net Lines: {user_stats['year_2024']['total_net']:,}"
                 )
 
-    # Handle OAuth flow
-    handle_oauth_callback()
-    token = init_github_oauth()
-    
     # Only show the rest of the UI if authenticated
     if token:
-        # Show user info and logout button in sidebar
-        user = st.session_state.get('github_user')
-        if user:
-            with st.sidebar:
-                st.markdown(f"""
-                ### 👤 Logged in as
-                **{user['name'] or user['login']}** (@{user['login']})
-                
-                *Using {len(user['emails'])} verified email(s)*
-                """)
-                if st.button("🚪 Logout", type="primary"):
-                    logout()
-        
         # Pre-fill the form
         username = st.text_input(
             "GitHub Username",
@@ -161,7 +174,6 @@ def main():
                             df_all_time = pd.DataFrame(contributions_all_time) if contributions_all_time else pd.DataFrame()
                             df_2024 = pd.DataFrame(contributions_2024) if contributions_2024 else pd.DataFrame()
                             
-                            # Add this database integration code here
                             # Store stats in database
                             db = Database()
                             stats_all_time = {
@@ -175,23 +187,29 @@ def main():
                                 "total_net": int(df_2024['total_lines'].sum()) if not df_2024.empty else 0
                             }
                             
-                            # Store user stats and get avatar URL from GitHub user data
+                            # Store user stats
                             avatar_url = user.get('avatar_url') if user else None
                             db.store_user_stats(username, stats_all_time, stats_2024, avatar_url)
                             
-                            # Continue with existing visualization code
-                            create_metrics_display(df_all_time)
-                            create_metrics_display(df_2024)
-                            
                             # Visualization Tabs
-                            tab1, tab2 = st.tabs(["All Time", "2024"])
+                            tab1, tab2 = st.tabs(["From Beginning", "2024"])
+                            
+                            # Create charts (but don't display yet)
                             fig_bar_all_time, fig_line_all_time = create_contribution_charts(df_all_time)
                             fig_bar_2024, fig_line_2024 = create_contribution_charts(df_2024)
                             
                             with tab1:
+                                st.subheader("📊 Contributions from Beginning")
+                                # Display metrics first
+                                create_metrics_display(df_all_time)
+                                # Then display chart
                                 st.plotly_chart(fig_bar_all_time, use_container_width=True)
                             
                             with tab2:
+                                st.subheader("📊 Contributions in 2024")
+                                # Display metrics first
+                                create_metrics_display(df_2024)
+                                # Then display chart
                                 st.plotly_chart(fig_bar_2024, use_container_width=True)
                             
                             # Detailed Repository Table
@@ -209,42 +227,37 @@ def main():
                         st.error(f"Error analyzing contributions: {str(e)}")
 
 def create_share_section(df: pd.DataFrame, username: str):
-    st.write("---")
-    st.subheader("📤 Share Your Stats")
-    
     # Calculate stats
     total_added = df['added_lines'].sum()
     total_deleted = df['deleted_lines'].sum()
     total_net = total_added - total_deleted
     
-    # Create a verification hash (first 8 chars) using repository names and stats
+    # Create verification hash
     repos_string = "-".join(sorted(df['repository'].tolist()))
     verification_string = f"{username}-{total_added}-{total_deleted}-{repos_string}"
     verification_hash = hashlib.sha256(verification_string.encode()).hexdigest()[:8]
     
-    # Create tweet text with verification
+    # Create tweet text
     tweet_text = (
-        f"🚀 My GitHub Contributions Analysis:\n\n"
-        f"📈 Added: {total_added:,} lines\n"
-        f"📉 Deleted: {total_deleted:,} lines\n"
-        f"✨ Net Change: {total_net:,} lines\n\n"
-        f"🔍 Verify: #{verification_hash}\n"
-        f"🔗 Try it: https://github.com/guillaumegay13/git-contributions"
+        f"📊 My GitHub Stats:\n"
+        f"Added: +{total_added:,}\n"
+        f"Deleted: -{total_deleted:,}\n"
+        f"Net: {total_net:,}\n"
+        f"#{verification_hash}\n"
+        f"🔗 https://github.com/guillaumegay13/git-contributions"
     )
     
     # Create Twitter share link
     tweet_url = f"https://twitter.com/intent/tweet?text={urllib.parse.quote(tweet_text)}"
     
-    # Show preview and share button
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        st.text_area("Tweet Preview", tweet_text, height=150)
-    with col2:
-        st.markdown(f"""
+    # Show just the share button
+    st.markdown(f"""
+    <div style="text-align: right;">
         <a href="{tweet_url}" target="_blank">
             <img src="https://img.shields.io/badge/Share%20on-X-black?logo=x&style=for-the-badge" alt="Share on X">
         </a>
-        """, unsafe_allow_html=True)
+    </div>
+    """, unsafe_allow_html=True)
 
 def verify_contribution_hash(username: str, added: int, deleted: int, repos: str, hash_to_verify: str) -> bool:
     """Verify a contribution hash from a tweet."""

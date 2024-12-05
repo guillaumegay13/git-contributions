@@ -1,15 +1,13 @@
 from pymongo import MongoClient, DESCENDING
 from typing import Dict, List, Optional
 from datetime import datetime
-import os
-from dotenv import load_dotenv
+import streamlit as st
 
 class Database:
     def __init__(self):
-        load_dotenv()
-        mongodb_uri = os.getenv('MONGODB_URI')
+        mongodb_uri = st.secrets["MONGODB_URI"]
         if not mongodb_uri:
-            raise ValueError("MongoDB URI not found in environment variables")
+            raise ValueError("MongoDB URI not found in secrets")
         
         self.client = MongoClient(mongodb_uri)
         self.db = self.client.github_contributions
@@ -83,3 +81,26 @@ class Database:
         except Exception as e:
             print(f"Error fetching user stats: {e}")
             return None
+
+    def search_users(self, query: str, limit: int = 5) -> list:
+        """
+        Search for users by exact username match
+        
+        Args:
+            query (str): The exact username to search for
+            limit (int): Maximum number of results to return
+            
+        Returns:
+            list: List of matching user stats
+        """
+        try:
+            # Case-insensitive exact match search
+            users = self.db.users.find(
+                {"username": {"$regex": f"^{query}$", "$options": "i"}},
+                {"_id": 0},  # Exclude MongoDB _id field
+                limit=limit
+            )
+            return list(users)
+        except Exception as e:
+            print(f"Error searching users: {e}")
+            return []

@@ -5,10 +5,11 @@ import tempfile
 import git
 import subprocess
 from datetime import datetime
+import streamlit as st
 
 class GitHubClient:
     def __init__(self, token: Optional[str] = None):
-        self.token = token or os.getenv('GITHUB_TOKEN')
+        self.token = token or st.secrets.get('GITHUB_TOKEN')
         self.headers = {
             'Authorization': f'token {self.token}' if self.token else '',
             'Accept': 'application/vnd.github.v3+json'

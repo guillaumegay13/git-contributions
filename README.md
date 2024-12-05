@@ -15,11 +15,12 @@ A Streamlit application that analyzes GitHub users' line contributions across th
    ```bash
    pip install -r requirements.txt
    ```
-3. Set up environment variables in `.env`:
-   ```
-   GITHUB_CLIENT_ID_DEV=your_client_id
-   GITHUB_CLIENT_SECRET_DEV=your_client_secret
-   IS_PROD=false
+3. Set up Streamlit secrets in `.streamlit/secrets.toml`:
+   ```toml
+   GITHUB_CLIENT_ID_DEV = "your_client_id"
+   GITHUB_CLIENT_SECRET_DEV = "your_client_secret"
+   IS_PROD = false
+   MONGODB_URI = "your_mongodb_uri"
    ```
 4. Run the application:
    ```bash

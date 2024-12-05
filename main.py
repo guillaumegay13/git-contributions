@@ -3,8 +3,6 @@ import requests
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-import urllib.parse
-import os
 
 def fetch_github_contributions(username):
     """Fetch repository contributions for a GitHub user."""
